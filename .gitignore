@@ -28,3 +28,8 @@ release/wi-kubernetes-manifests.yaml
 vendor/
 gha-creds-*.json
 APP_SPECS.md
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+backend.hcl

@@ -1,0 +1,8 @@
+# Copy file này thành backend.hcl (đã nằm trong .gitignore)
+# rồi thay <TEN-S3-BUCKET-CUA-BAN> bằng tên S3 bucket bạn vừa tạo.
+
+bucket       = "<TEN-S3-BUCKET-CUA-BAN>"
+key          = "shared/terraform.tfstate"
+region       = "ap-southeast-1"
+encrypt      = true
+use_lockfile = true
