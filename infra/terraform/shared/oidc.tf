@@ -11,7 +11,7 @@ resource "aws_iam_openid_connect_provider" "github" {
   ]
 }
 
-# 2. Trust Policy: CHỈ cho phép duy nhất repo GitHub của bạn (var.github_repo) được assume role này.
+# 2. Trust Policy: CHỈ cho phép duy nhất repo GitHub của bạn (var.github_oidc_sub) được assume role này.
 data "aws_iam_policy_document" "github_assume_role" {
   statement {
     sid     = "AllowGitHubActionsOIDC"
@@ -32,7 +32,7 @@ data "aws_iam_policy_document" "github_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"]
+      values   = [var.github_oidc_sub]
     }
   }
 }

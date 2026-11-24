@@ -10,10 +10,10 @@ variable "project_name" {
   default     = "online-boutique"
 }
 
-variable "github_repo" {
-  description = "GitHub repository được phép assume IAM Role qua OIDC (định dạng owner/repo)"
+variable "github_oidc_sub" {
+  description = "Chuỗi OIDC sub claim chuẩn của GitHub repo (bao gồm Owner ID và Repo ID bất biến để chống repo-resurrection)"
   type        = string
-  default     = "T4nTai/T4nTai-online-boutique-eks-gitops"
+  default     = "repo:T4nTai@158046221/T4nTai-online-boutique-eks-gitops@1469623249:*"
 }
 
 variable "services" {
