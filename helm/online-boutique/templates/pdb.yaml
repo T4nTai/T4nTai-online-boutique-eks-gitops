@@ -1,0 +1,14 @@
+{{- if .Values.pdb.frontend.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  labels:
+    app: frontend
+    {{- include "online-boutique.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.pdb.frontend.minAvailable }}
+  selector:
+    matchLabels:
+      app: frontend
+{{- end }}

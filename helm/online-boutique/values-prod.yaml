@@ -1,0 +1,15 @@
+# File override dành riêng cho môi trường AWS EKS Production (GitOps ArgoCD sẽ đọc file này)
+global:
+  imagePullPolicy: Always
+
+autoscaling:
+  frontend:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 50
+
+loadgenerator:
+  enabled: true
+  users: "15"
+  rate: "2"

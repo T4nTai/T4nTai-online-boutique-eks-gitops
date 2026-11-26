@@ -1,0 +1,263 @@
+# Registry mặc định trỏ về Amazon ECR bạn đã tạo ở Lab 2A
+global:
+  imageRegistry: "638120275076.dkr.ecr.ap-southeast-1.amazonaws.com/online-boutique"
+  imageTag: "latest"
+  imagePullPolicy: IfNotPresent
+
+# Pod & Container Security Context chuẩn DevSecOps (non-root, read-only rootfs, drop ALL capabilities)
+securityContext:
+  pod:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  container:
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+# AWS Application Load Balancer Ingress (yêu cầu cài AWS Load Balancer Controller trên EKS ở Lab 5)
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /_healthz
+    alb.ingress.kubernetes.io/healthcheck-port: "8080"
+    alb.ingress.kubernetes.io/success-codes: "200"
+  host: ""
+
+# Autoscaling (HPA) cho frontend — test thực tế bằng loadgenerator ở Lab 5
+autoscaling:
+  frontend:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 60
+
+# PodDisruptionBudget đảm bảo tối thiểu 1 pod frontend luôn sống khi EKS upgrade/rollout
+pdb:
+  frontend:
+    enabled: true
+    minAvailable: 1
+
+# Redis lưu giỏ hàng cho cartservice
+redis:
+  enabled: true
+  image: "redis:7-alpine"
+  port: 6379
+  resources:
+    requests:
+      cpu: 70m
+      memory: 200Mi
+    limits:
+      cpu: 125m
+      memory: 256Mi
+
+# Load Generator (Locust) tự tạo traffic giả lập vào frontend để test HPA & Grafana
+loadgenerator:
+  enabled: true
+  replicas: 1
+  users: "10"
+  rate: "1"
+  initImage: "busybox:1.36"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Cấu hình tập trung cho 10 microservices chính (DRY — 1 template sinh ra cả 10 Deployment + Service + SA)
+services:
+  frontend:
+    replicas: 2
+    containerPort: 8080
+    servicePort: 80
+    portName: http
+    probeType: http
+    probePath: /_healthz
+    initialDelaySeconds: 10
+    env:
+      PORT: "8080"
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      CURRENCY_SERVICE_ADDR: "currencyservice:7000"
+      CART_SERVICE_ADDR: "cartservice:7070"
+      RECOMMENDATION_SERVICE_ADDR: "recommendationservice:8080"
+      SHIPPING_SERVICE_ADDR: "shippingservice:50051"
+      CHECKOUT_SERVICE_ADDR: "checkoutservice:5050"
+      AD_SERVICE_ADDR: "adservice:9555"
+      ENABLE_PROFILER: "0"
+      ENV_PLATFORM: "aws"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  productcatalogservice:
+    replicas: 1
+    containerPort: 3550
+    servicePort: 3550
+    portName: grpc
+    probeType: grpc
+    env:
+      PORT: "3550"
+      DISABLE_PROFILER: "1"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  currencyservice:
+    replicas: 1
+    containerPort: 7000
+    servicePort: 7000
+    portName: grpc
+    probeType: grpc
+    env:
+      PORT: "7000"
+      DISABLE_PROFILER: "1"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  cartservice:
+    replicas: 1
+    containerPort: 7070
+    servicePort: 7070
+    portName: grpc
+    probeType: grpc
+    initialDelaySeconds: 15
+    env:
+      REDIS_ADDR: "redis-cart:6379"
+    resources:
+      requests:
+        cpu: 150m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 128Mi
+
+  recommendationservice:
+    replicas: 1
+    containerPort: 8080
+    servicePort: 8080
+    portName: grpc
+    probeType: grpc
+    env:
+      PORT: "8080"
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      DISABLE_PROFILER: "1"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 220Mi
+      limits:
+        cpu: 200m
+        memory: 450Mi
+
+  shippingservice:
+    replicas: 1
+    containerPort: 50051
+    servicePort: 50051
+    portName: grpc
+    probeType: grpc
+    env:
+      PORT: "50051"
+      DISABLE_PROFILER: "1"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  paymentservice:
+    replicas: 1
+    containerPort: 50051
+    servicePort: 50051
+    portName: grpc
+    probeType: grpc
+    env:
+      PORT: "50051"
+      DISABLE_PROFILER: "1"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  emailservice:
+    replicas: 1
+    containerPort: 8080
+    servicePort: 5000
+    portName: grpc
+    probeType: grpc
+    env:
+      PORT: "8080"
+      DISABLE_PROFILER: "1"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  checkoutservice:
+    replicas: 1
+    containerPort: 5050
+    servicePort: 5050
+    portName: grpc
+    probeType: grpc
+    env:
+      PORT: "5050"
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      SHIPPING_SERVICE_ADDR: "shippingservice:50051"
+      PAYMENT_SERVICE_ADDR: "paymentservice:50051"
+      EMAIL_SERVICE_ADDR: "emailservice:5000"
+      CURRENCY_SERVICE_ADDR: "currencyservice:7000"
+      CART_SERVICE_ADDR: "cartservice:7070"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  adservice:
+    replicas: 1
+    containerPort: 9555
+    servicePort: 9555
+    portName: grpc
+    probeType: grpc
+    initialDelaySeconds: 20
+    periodSeconds: 15
+    env:
+      PORT: "9555"
+    resources:
+      requests:
+        cpu: 150m
+        memory: 180Mi
+      limits:
+        cpu: 300m
+        memory: 300Mi

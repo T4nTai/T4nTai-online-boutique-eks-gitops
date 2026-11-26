@@ -1,0 +1,65 @@
+{{- if .Values.loadgenerator.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loadgenerator
+  labels:
+    app: loadgenerator
+    {{- include "online-boutique.labels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgenerator
+  labels:
+    app: loadgenerator
+    {{- include "online-boutique.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.loadgenerator.replicas }}
+  selector:
+    matchLabels:
+      app: loadgenerator
+  template:
+    metadata:
+      labels:
+        app: loadgenerator
+        {{- include "online-boutique.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: loadgenerator
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        {{- toYaml .Values.securityContext.pod | nindent 8 }}
+      initContainers:
+        - name: wait-for-frontend
+          image: {{ .Values.loadgenerator.initImage | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext.container | nindent 12 }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              for i in $(seq 1 18); do
+                if wget -qO- http://frontend:80/_healthz >/dev/null 2>&1; then
+                  echo "Frontend is ready!"
+                  exit 0
+                fi
+                echo "Waiting for frontend... ($i/18)"
+                sleep 10
+              done
+              exit 1
+      containers:
+        - name: main
+          image: {{ printf "%s/loadgenerator:%s" .Values.global.imageRegistry .Values.global.imageTag | quote }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext.container | nindent 12 }}
+          env:
+            - name: FRONTEND_ADDR
+              value: "frontend:80"
+            - name: USERS
+              value: {{ .Values.loadgenerator.users | quote }}
+            - name: RATE
+              value: {{ .Values.loadgenerator.rate | quote }}
+          resources:
+            {{- toYaml .Values.loadgenerator.resources | nindent 12 }}
+{{- end }}

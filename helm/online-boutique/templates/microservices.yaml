@@ -1,0 +1,91 @@
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+    {{- include "online-boutique.labels" $ | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+    {{- include "online-boutique.labels" $ | nindent 4 }}
+spec:
+  {{- if not (and (eq $name "frontend") $.Values.autoscaling.frontend.enabled) }}
+  replicas: {{ $svc.replicas | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+        {{- include "online-boutique.labels" $ | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        {{- toYaml $.Values.securityContext.pod | nindent 8 }}
+      containers:
+        - name: server
+          image: {{ printf "%s/%s:%s" $.Values.global.imageRegistry $name ($svc.imageTag | default $.Values.global.imageTag) | quote }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          securityContext:
+            {{- toYaml $.Values.securityContext.container | nindent 12 }}
+          ports:
+            - name: {{ $svc.portName | default "grpc" }}
+              containerPort: {{ $svc.containerPort }}
+          {{- if $svc.env }}
+          env:
+            {{- range $envKey, $envVal := $svc.env }}
+            - name: {{ $envKey }}
+              value: {{ $envVal | quote }}
+            {{- end }}
+          {{- end }}
+          readinessProbe:
+            initialDelaySeconds: {{ $svc.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ $svc.periodSeconds | default 10 }}
+            {{- if eq $svc.probeType "http" }}
+            httpGet:
+              path: {{ $svc.probePath | default "/_healthz" }}
+              port: {{ $svc.containerPort }}
+            {{- else }}
+            grpc:
+              port: {{ $svc.containerPort }}
+            {{- end }}
+          livenessProbe:
+            initialDelaySeconds: {{ $svc.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ $svc.periodSeconds | default 15 }}
+            {{- if eq $svc.probeType "http" }}
+            httpGet:
+              path: {{ $svc.probePath | default "/_healthz" }}
+              port: {{ $svc.containerPort }}
+            {{- else }}
+            grpc:
+              port: {{ $svc.containerPort }}
+            {{- end }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+    {{- include "online-boutique.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ $name }}
+  ports:
+    - name: {{ $svc.portName | default "grpc" }}
+      port: {{ $svc.servicePort }}
+      targetPort: {{ $svc.containerPort }}
+{{- end }}

@@ -1,0 +1,43 @@
+name: CI - Helm Lint & Kubernetes Schema Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "helm/**"
+      - ".github/workflows/helm-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "helm/**"
+
+jobs:
+  helm-validate:
+    name: Helm Lint & Kubeconform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.4"
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin kubeconform
+          kubeconform -v
+
+      - name: Helm Lint (default + prod values)
+        run: |
+          helm lint helm/online-boutique
+          helm lint helm/online-boutique -f helm/online-boutique/values-prod.yaml
+
+      - name: Render Helm templates and validate K8s API schemas
+        run: |
+          helm template online-boutique helm/online-boutique \
+            -f helm/online-boutique/values-prod.yaml \
+            --namespace online-boutique | \
+            kubeconform -strict -summary -kubernetes-version 1.31.0
